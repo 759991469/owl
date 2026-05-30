@@ -574,7 +574,7 @@ func (a IPCAPI) refreshSnapshot(c *gin.Context, in *refreshSnapshotInput) (any, 
 			GetSnapRequest: zlm.GetSnapRequest{
 				URL:        in.URL,
 				TimeoutSec: 10,
-				ExpireSec:  28800,
+				ExpireSec:  int(in.WithinSeconds),
 			},
 			Stream: channelID,
 		})
