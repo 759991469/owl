@@ -90,6 +90,11 @@ class CameraTask:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
+        # 告警去重缓存：key=label, value=(last_alert_time, last_box)
+        # 冷却期内同一目标（标签相同 + IoU > 0.3）不重复告警
+        self._alert_cache: dict[str, tuple[float, dict]] = {}
+        self._cooldown: float = config.get("alert_cooldown_seconds", 30.0)
+
         self.frame_queue = queue.Queue(maxsize=1)
         self.capture = FrameCapture(
             rtsp_url,
@@ -167,6 +172,10 @@ class CameraTask:
 
                 if not detections:
                     continue
+
+                detections = self._dedup(detections)
+                if not detections:
+                    continue
                 self._send_detection_callback(detections, frame)
             except Exception as e:
                 slog.error(f"CameraTask analysis loop error: {e}")
@@ -179,6 +188,53 @@ class CameraTask:
                     break
                 # 防止 cpu 在异常里空转
                 time.sleep(1)
+
+    @staticmethod
+    def _iou(a: dict, b: dict) -> float:
+        """
+        计算两个检测框的 IoU（交并比）。
+        用于判断两次检测是否为同一目标，避免因目标轻微移动导致重复告警。
+        """
+        ax1, ay1, ax2, ay2 = a["x_min"], a["y_min"], a["x_max"], a["y_max"]
+        bx1, by1, bx2, by2 = b["x_min"], b["y_min"], b["x_max"], b["y_max"]
+
+        inter_x1 = max(ax1, bx1)
+        inter_y1 = max(ay1, by1)
+        inter_x2 = min(ax2, bx2)
+        inter_y2 = min(ay2, by2)
+
+        inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
+        if inter_area == 0:
+            return 0.0
+
+        area_a = (ax2 - ax1) * (ay2 - ay1)
+        area_b = (bx2 - bx1) * (by2 - by1)
+        union_area = area_a + area_b - inter_area
+        return inter_area / union_area if union_area > 0 else 0.0
+
+    def _dedup(self, detections: list[dict]) -> list[dict]:
+        """
+        告警去重（方案 B：时间窗口 + IoU 空间比对）。
+        冷却期内，标签相同且 IoU > 0.3 的目标视为重复，过滤掉不告警。
+        冷却期外，或空间位置差异大（新目标），放行并刷新缓存。
+        """
+        now = time.time()
+        result = []
+        for det in detections:
+            label = det["label"]
+            box = det["box"]
+            cached = self._alert_cache.get(label)
+            if cached is not None:
+                last_time, last_box = cached
+                if now - last_time < self._cooldown and self._iou(box, last_box) > 0.3:
+                    slog.debug(
+                        f"[dedup] 抑制重复告警: camera={self.camera_id} label={label} "
+                        f"cooldown_remaining={self._cooldown - (now - last_time):.1f}s"
+                    )
+                    continue
+            self._alert_cache[label] = (now, box)
+            result.append(det)
+        return result
 
     def _send_detection_callback(self, detections, frame):
         timestamp = int(time.time() * 1000)
@@ -299,6 +355,7 @@ class AnalysisServiceServicer(analysis_pb2_grpc.AnalysisServiceServicer):
                 )
             config = {
                 "detect_interval_seconds": request.detect_interval_seconds,
+                "alert_cooldown_seconds": request.alert_cooldown_seconds,
                 "labels": list(request.labels),
                 "threshold": request.threshold,
                 "roi_points": list(request.roi_points),

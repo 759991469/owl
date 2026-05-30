@@ -8,7 +8,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class StartCameraRequest(_message.Message):
-    __slots__ = ("camera_id", "camera_name", "rtsp_url", "detect_interval_seconds", "labels", "threshold", "roi_points", "retry_limit", "callback_url", "callback_secret")
+    __slots__ = ("camera_id", "camera_name", "rtsp_url", "detect_interval_seconds", "labels", "threshold", "roi_points", "alert_cooldown_seconds", "retry_limit", "callback_url", "callback_secret")
     CAMERA_ID_FIELD_NUMBER: _ClassVar[int]
     CAMERA_NAME_FIELD_NUMBER: _ClassVar[int]
     RTSP_URL_FIELD_NUMBER: _ClassVar[int]
@@ -16,6 +16,7 @@ class StartCameraRequest(_message.Message):
     LABELS_FIELD_NUMBER: _ClassVar[int]
     THRESHOLD_FIELD_NUMBER: _ClassVar[int]
     ROI_POINTS_FIELD_NUMBER: _ClassVar[int]
+    ALERT_COOLDOWN_SECONDS_FIELD_NUMBER: _ClassVar[int]
     RETRY_LIMIT_FIELD_NUMBER: _ClassVar[int]
     CALLBACK_URL_FIELD_NUMBER: _ClassVar[int]
     CALLBACK_SECRET_FIELD_NUMBER: _ClassVar[int]
@@ -26,10 +27,11 @@ class StartCameraRequest(_message.Message):
     labels: _containers.RepeatedScalarFieldContainer[str]
     threshold: float
     roi_points: _containers.RepeatedScalarFieldContainer[float]
+    alert_cooldown_seconds: float
     retry_limit: int
     callback_url: str
     callback_secret: str
-    def __init__(self, camera_id: _Optional[str] = ..., camera_name: _Optional[str] = ..., rtsp_url: _Optional[str] = ..., detect_interval_seconds: _Optional[float] = ..., labels: _Optional[_Iterable[str]] = ..., threshold: _Optional[float] = ..., roi_points: _Optional[_Iterable[float]] = ..., retry_limit: _Optional[int] = ..., callback_url: _Optional[str] = ..., callback_secret: _Optional[str] = ...) -> None: ...
+    def __init__(self, camera_id: _Optional[str] = ..., camera_name: _Optional[str] = ..., rtsp_url: _Optional[str] = ..., detect_interval_seconds: _Optional[float] = ..., labels: _Optional[_Iterable[str]] = ..., threshold: _Optional[float] = ..., roi_points: _Optional[_Iterable[float]] = ..., alert_cooldown_seconds: _Optional[float] = ..., retry_limit: _Optional[int] = ..., callback_url: _Optional[str] = ..., callback_secret: _Optional[str] = ...) -> None: ...
 
 class StartCameraResponse(_message.Message):
     __slots__ = ("success", "message", "source_width", "source_height", "source_fps")

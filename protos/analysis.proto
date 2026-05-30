@@ -36,6 +36,9 @@ message StartCameraRequest {
   // 归一化坐标 (x1, y1, x2, y2, ...)
   repeated float roi_points = 7;
 
+  // 告警冷却时间（秒），冷却期内同一目标（标签相同且框 IoU>0.3）不重复告警，默认 30 秒
+  float alert_cooldown_seconds = 9;
+
   // 错误处理
   int32 retry_limit = 8;          // 遇到错误的自动重试次数，默认 10
 

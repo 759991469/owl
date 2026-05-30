@@ -52,6 +52,9 @@ func (a *AIClient) StartCamera(ctx context.Context, in *protos.StartCameraReques
 	if in.GetDetectIntervalSeconds() <= 0 {
 		in.DetectIntervalSeconds = 5.0
 	}
+	if in.GetAlertCooldownSeconds() <= 0 {
+		in.AlertCooldownSeconds = 30.0
+	}
 	if in.GetThreshold() == 0 {
 		in.Threshold = 0.5
 	}

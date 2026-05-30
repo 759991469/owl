@@ -85,6 +85,8 @@ type StartCameraRequest struct {
 	// n 个坐标组合成的多边形，例如 [0.1, 0.2, 0.12, 0.22, 0.1, 0.3...]
 	// 归一化坐标 (x1, y1, x2, y2, ...)
 	RoiPoints []float32 `protobuf:"fixed32,7,rep,packed,name=roi_points,json=roiPoints,proto3" json:"roi_points,omitempty"`
+	// 告警冷却时间（秒），冷却期内同一目标（标签相同且框 IoU>0.3）不重复告警，默认 30 秒
+	AlertCooldownSeconds float32 `protobuf:"fixed32,9,opt,name=alert_cooldown_seconds,json=alertCooldownSeconds,proto3" json:"alert_cooldown_seconds,omitempty"`
 	// 错误处理
 	RetryLimit int32 `protobuf:"varint,8,opt,name=retry_limit,json=retryLimit,proto3" json:"retry_limit,omitempty"` // 遇到错误的自动重试次数，默认 10
 	// === 回调配置 ===
@@ -172,6 +174,13 @@ func (x *StartCameraRequest) GetRoiPoints() []float32 {
 		return x.RoiPoints
 	}
 	return nil
+}
+
+func (x *StartCameraRequest) GetAlertCooldownSeconds() float32 {
+	if x != nil {
+		return x.AlertCooldownSeconds
+	}
+	return 0
 }
 
 func (x *StartCameraRequest) GetRetryLimit() int32 {
@@ -684,7 +693,7 @@ var File_protos_analysis_proto protoreflect.FileDescriptor
 
 const file_protos_analysis_proto_rawDesc = "" +
 	"\n" +
-	"\x15protos/analysis.proto\x12\banalysis\"\xe7\x02\n" +
+	"\x15protos/analysis.proto\x12\banalysis\"\x9d\x03\n" +
 	"\x12StartCameraRequest\x12\x1b\n" +
 	"\tcamera_id\x18\x01 \x01(\tR\bcameraId\x12\x1f\n" +
 	"\vcamera_name\x18\x02 \x01(\tR\n" +
@@ -694,7 +703,8 @@ const file_protos_analysis_proto_rawDesc = "" +
 	"\x06labels\x18\x05 \x03(\tR\x06labels\x12\x1c\n" +
 	"\tthreshold\x18\x06 \x01(\x02R\tthreshold\x12\x1d\n" +
 	"\n" +
-	"roi_points\x18\a \x03(\x02R\troiPoints\x12\x1f\n" +
+	"roi_points\x18\a \x03(\x02R\troiPoints\x124\n" +
+	"\x16alert_cooldown_seconds\x18\t \x01(\x02R\x14alertCooldownSeconds\x12\x1f\n" +
 	"\vretry_limit\x18\b \x01(\x05R\n" +
 	"retryLimit\x12!\n" +
 	"\fcallback_url\x18\n" +

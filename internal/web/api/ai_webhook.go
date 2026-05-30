@@ -274,11 +274,13 @@ func (a *AIWebhookAPI) StartAIDetection(ctx context.Context, ch *ipc.Channel, rt
 	if interval <= 0 {
 		interval = 5.0
 	}
+	cooldown := a.conf.Server.AI.AlertCooldownSeconds
 	resp, err := a.ai.StartCamera(ctx, &protos.StartCameraRequest{
 		CameraId:              ch.ID,
 		CameraName:            ch.Name,
 		RtspUrl:               rtspURL,
 		DetectIntervalSeconds: interval,
+		AlertCooldownSeconds:  cooldown,
 		Labels:                labels,
 		Threshold:             0.75,
 		RoiPoints:             roiPoints,

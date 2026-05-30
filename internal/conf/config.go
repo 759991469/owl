@@ -42,6 +42,8 @@ type ServerAI struct {
 	RetainDays int  `comment:"保留天数"`
 	// 全局默认分析间隔（秒）。0=内置默认5秒；0.5=每秒2张；1=每秒1张；5=每5秒1张；30=每30秒1张
 	AnalysisInterval float32 `comment:"全局默认分析间隔（秒）"`
+	// 告警冷却时间（秒）。同一目标在冷却期内不重复告警。0=内置默认30秒；10=10秒；60=1分钟
+	AlertCooldownSeconds float32 `comment:"告警冷却时间（秒）"`
 }
 
 type ServerHTTP struct {
