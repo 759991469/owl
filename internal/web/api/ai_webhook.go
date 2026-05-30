@@ -33,6 +33,9 @@ type AIWebhookAPI struct {
 	ai        *rpc.AIClient
 	eventCore event.Core
 	ipcCore   ipc.Core
+	// smsCore 在 StartAISyncLoop 时注入，供 ReloadAITask 使用
+	smsCore      sms.Core
+	smsCoreReady bool
 }
 
 // NewAIWebhookAPI 创建 AI Webhook API 实例
@@ -166,6 +169,8 @@ func (a AIWebhookAPI) onStopped(c *gin.Context, in *AIStoppedInput) (AIWebhookOu
 // StartAISyncLoop 启动 AI 任务同步协程，启动后立即执行一次同步，之后每 5 分钟检测一次
 // 立即执行是为了在服务重启后尽快恢复之前开启的 AI 分析任务
 func (a *AIWebhookAPI) StartAISyncLoop(ctx context.Context, smsCore sms.Core) {
+	a.smsCore = smsCore
+	a.smsCoreReady = true
 	go func() {
 		// 延迟 30 秒再首次同步，等待设备注册和 catalog 更新完成，避免读到过期状态
 		select {
@@ -264,7 +269,7 @@ func (a *AIWebhookAPI) StartAIDetection(ctx context.Context, ch *ipc.Channel, rt
 		return nil, fmt.Errorf("AI service not initialized")
 	}
 
-	roiPoints, labels := a.extractZoneConfig(ch)
+	zones := a.extractZoneConfig(ch)
 
 	// 三级回退：通道自定义 → 配置文件全局默认 → 内置兜底 5 秒
 	interval := ch.Ext.AnalysisInterval
@@ -281,9 +286,8 @@ func (a *AIWebhookAPI) StartAIDetection(ctx context.Context, ch *ipc.Channel, rt
 		RtspUrl:               rtspURL,
 		DetectIntervalSeconds: interval,
 		AlertCooldownSeconds:  cooldown,
-		Labels:                labels,
+		Zones:                 zones,
 		Threshold:             0.75,
-		RoiPoints:             roiPoints,
 		RetryLimit:            10,
 		CallbackUrl:           fmt.Sprintf("http://127.0.0.1:%d/ai", a.conf.Server.HTTP.Port),
 		CallbackSecret:        "Basic 1234567890",
@@ -309,17 +313,37 @@ func (a *AIWebhookAPI) StopAIDetection(ctx context.Context, channelID string) er
 	return err
 }
 
-// extractZoneConfig 从通道配置中提取区域和标签信息
-func (a *AIWebhookAPI) extractZoneConfig(ch *ipc.Channel) (roiPoints []float32, labels []string) {
-	if len(ch.Ext.Zones) > 0 {
-		zone := ch.Ext.Zones[0]
-		roiPoints = zone.Coordinates
-		labels = zone.Labels
+// extractZoneConfig 从通道配置中提取多区域信息，转为 proto AnalysisZone 列表
+func (a *AIWebhookAPI) extractZoneConfig(ch *ipc.Channel) []*protos.AnalysisZone {
+	var zones []*protos.AnalysisZone
+	defaultLabels := []string{"person", "car", "cat", "dog"}
+
+	for _, z := range ch.Ext.Zones {
+		labels := z.Labels
+		if len(labels) == 0 {
+			labels = defaultLabels
+		}
+		zones = append(zones, &protos.AnalysisZone{
+			Points: z.Coordinates,
+			Labels: labels,
+			Name:   z.Name,
+		})
 	}
-	if len(labels) == 0 {
-		labels = []string{"person", "car", "cat", "dog"}
+
+	// 无区域配置时，下发空切片；Python 侧无区域则全图检测
+	return zones
+}
+
+// ReloadAITask 停止再重启指定通道的 AI 任务，使区域、标签等配置立即生效
+// 需要 StartAISyncLoop 已调用（smsCore 已注入）
+func (a *AIWebhookAPI) ReloadAITask(ctx context.Context, ch *ipc.Channel) error {
+	if !a.smsCoreReady {
+		return fmt.Errorf("smsCore not initialized, StartAISyncLoop not called yet")
 	}
-	return
+	if err := a.stopAITask(ctx, ch.ID); err != nil {
+		a.log.Warn("ReloadAITask stop failed, continuing to start", "camera_id", ch.ID, "err", err)
+	}
+	return a.startAITask(ctx, a.smsCore, ch)
 }
 
 // saveEventSnapshot 将 Base64 编码的快照保存到 configs/events/{cid}/ 目录

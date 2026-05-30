@@ -144,30 +144,18 @@ class CameraTask:
                 error_streak = 0
                 self.frames_processed += 1
 
-                roi_points = self.config.get("roi_points")
+                zones = self.config.get("zones") or []
                 motion_boxes, has_motion = self.motion_detector.detect(
-                    frame, self.camera_id, roi_points
+                    frame, self.camera_id, zones if zones else None
                 )
 
                 if not has_motion:
                     continue
 
                 try:
-                    labels = self.config.get("labels")
-                    if labels and isinstance(labels, list):
-                        safe_labels = [str(l) for l in labels]
-                    else:
-                        safe_labels = None
-
-                    detections, _ = self.detector.detect(
-                        frame,
-                        threshold=self.config.get("threshold", 0.5),
-                        label_filter=safe_labels,
-                        # 暂时只支持全图检测，未来优化可以只检测 motion_boxes 区域
-                        regions=None,
-                    )
+                    detections = self._detect_with_zones(frame, zones)
                 except Exception as e:
-                    slog.error(f"CameraTask labels error: {e}")
+                    slog.error(f"CameraTask detect error: {e}")
                     continue
 
                 if not detections:
@@ -188,6 +176,61 @@ class CameraTask:
                     break
                 # 防止 cpu 在异常里空转
                 time.sleep(1)
+
+    def _detect_with_zones(self, frame, zones: list[dict]) -> list[dict]:
+        """
+        多区域目标检测：有区域配置时逐区域过滤，无区域时全图检测。
+        每个区域使用自己的 labels；检测框中心点必须在多边形内部才计入。
+        """
+        import numpy as np
+        import cv2
+
+        threshold = self.config.get("threshold", 0.5)
+        global_labels = self.config.get("labels") or []
+        safe_global = [str(l) for l in global_labels] if global_labels else None
+
+        if not zones:
+            dets, _ = self.detector.detect(frame, threshold=threshold, label_filter=safe_global)
+            return dets
+
+        h, w = frame.shape[:2]
+        result = []
+        seen_boxes: set[tuple] = set()
+
+        for zone in zones:
+            pts_flat = zone.get("points", [])
+            zone_labels = zone.get("labels") or global_labels
+            safe_labels = [str(l) for l in zone_labels] if zone_labels else safe_global
+
+            # 将归一化坐标转为像素多边形
+            poly = None
+            if pts_flat and len(pts_flat) >= 6:
+                pts = [(int(pts_flat[i] * w), int(pts_flat[i + 1] * h)) for i in range(0, len(pts_flat), 2)]
+                poly = np.array(pts, dtype=np.float32)
+
+            dets, _ = self.detector.detect(frame, threshold=threshold, label_filter=safe_labels)
+
+            for det in dets:
+                box = det["box"]
+                # 判断：检测框底部中心点或框中心点，任意一个在多边形内则计入
+                # 底部中心点适合人物检测（人的脚在区域内即视为进入区域）
+                if poly is not None:
+                    cx = (box["x_min"] + box["x_max"]) / 2.0
+                    cy_center = (box["y_min"] + box["y_max"]) / 2.0
+                    cy_bottom = float(box["y_max"])
+                    in_zone = (
+                        cv2.pointPolygonTest(poly, (cx, cy_bottom), measureDist=False) >= 0
+                        or cv2.pointPolygonTest(poly, (cx, cy_center), measureDist=False) >= 0
+                    )
+                    if not in_zone:
+                        continue
+
+                key = (det["label"], box["x_min"], box["y_min"], box["x_max"], box["y_max"])
+                if key not in seen_boxes:
+                    seen_boxes.add(key)
+                    result.append(det)
+
+        return result
 
     @staticmethod
     def _iou(a: dict, b: dict) -> float:
@@ -353,12 +396,17 @@ class AnalysisServiceServicer(analysis_pb2_grpc.AnalysisServiceServicer):
                 return analysis_pb2.StartCameraResponse(
                     success=False, message="callback url is required"
                 )
+            # 将 proto AnalysisZone 列表转为纯 Python dict 存入 config
+            zones = [
+                {"points": list(z.points), "labels": list(z.labels), "name": z.name}
+                for z in request.zones
+            ]
             config = {
                 "detect_interval_seconds": request.detect_interval_seconds,
                 "alert_cooldown_seconds": request.alert_cooldown_seconds,
                 "labels": list(request.labels),
                 "threshold": request.threshold,
-                "roi_points": list(request.roi_points),
+                "zones": zones,
                 "retry_limit": request.retry_limit,
                 "callback_url": cb_url,
                 "callback_secret": cb_secret,

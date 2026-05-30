@@ -105,6 +105,7 @@ func registerGB28181(g gin.IRouter, api IPCAPI, handler ...gin.HandlerFunc) {
 		group.GET("/:id/snapshot", api.getSnapshot)                  // 获取图像（所有协议）
 		group.POST("/:id/zones", web.WrapH(api.addZone))             // 添加区域（所有协议）
 		group.GET("/:id/zones", web.WrapH(api.getZones))             // 获取区域（所有协议）
+		group.DELETE("/:id/zones/:name", web.WrapH(api.deleteZone))  // 删除区域（所有协议）
 		group.POST("/:id/ai/enable", web.WrapH(api.enableAI))        // 启用 AI 检测
 		group.POST("/:id/ai/disable", web.WrapH(api.disableAI))      // 禁用 AI 检测
 		group.POST("/:id/record_mode", web.WrapH(api.setRecordMode)) // 设置录像模式
@@ -594,17 +595,53 @@ func (a IPCAPI) refreshSnapshot(c *gin.Context, in *refreshSnapshotInput) (any, 
 }
 
 func (a IPCAPI) addZone(c *gin.Context, in *ipc.AddZoneInput) (gin.H, error) {
+	ctx := c.Request.Context()
 	channelID := c.Param("id")
 	if len(in.Labels) == 0 {
 		in.Labels = []string{"person", "car", "cat", "dog"}
 	}
-	zones, err := a.ipc.AddZone(c.Request.Context(), in, channelID)
-	return gin.H{"items": zones}, err
+	zones, err := a.ipc.AddZone(ctx, in, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 区域写入后，若 AI 已开启则立即重启任务使新区域生效
+	if a.uc != nil {
+		ch, chErr := a.ipc.GetChannel(ctx, channelID)
+		if chErr == nil && ch.Ext.EnabledAI {
+			if reloadErr := a.uc.AIWebhookAPI.ReloadAITask(ctx, ch); reloadErr != nil {
+				slog.WarnContext(ctx, "reload AI task after zone update failed", "camera_id", channelID, "err", reloadErr)
+			}
+		}
+	}
+	return gin.H{"items": zones}, nil
 }
 
 func (a IPCAPI) getZones(c *gin.Context, _ *struct{}) (any, error) {
 	channelID := c.Param("id")
 	return a.ipc.GetZones(c.Request.Context(), channelID)
+}
+
+func (a IPCAPI) deleteZone(c *gin.Context, _ *struct{}) (gin.H, error) {
+	ctx := c.Request.Context()
+	channelID := c.Param("id")
+	zoneName := c.Param("name")
+
+	zones, err := a.ipc.DeleteZone(ctx, channelID, zoneName)
+	if err != nil {
+		return nil, err
+	}
+
+	// 删除区域后，若 AI 已开启则立即重启任务使变更生效
+	if a.uc != nil {
+		ch, chErr := a.ipc.GetChannel(ctx, channelID)
+		if chErr == nil && ch.Ext.EnabledAI {
+			if reloadErr := a.uc.AIWebhookAPI.ReloadAITask(ctx, ch); reloadErr != nil {
+				slog.WarnContext(ctx, "reload AI task after zone delete failed", "camera_id", channelID, "err", reloadErr)
+			}
+		}
+	}
+	return gin.H{"items": zones}, nil
 }
 
 func (a IPCAPI) getSnapshot(c *gin.Context) {

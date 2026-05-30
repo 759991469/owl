@@ -307,6 +307,27 @@ func (c *Core) AddZone(ctx context.Context, in *AddZoneInput, channelID string) 
 	return &newZone, nil
 }
 
+// DeleteZone 按名称删除指定区域，返回删除后的区域列表
+func (c *Core) DeleteZone(ctx context.Context, channelID, zoneName string) ([]Zone, error) {
+	var out Channel
+	if err := c.store.Channel().Edit(ctx, &out, func(b *Channel) error {
+		idx := slices.IndexFunc(b.Ext.Zones, func(z Zone) bool {
+			return z.Name == zoneName
+		})
+		if idx < 0 {
+			return reason.ErrNotFound.SetMsg("区域不存在")
+		}
+		b.Ext.Zones = slices.Delete(b.Ext.Zones, idx, idx+1)
+		return nil
+	}, orm.Where("id=?", channelID)); err != nil {
+		if reason.IsCustomError(err) {
+			return nil, err
+		}
+		return nil, reason.ErrDB.Withf(`DeleteZone err[%s]`, err.Error())
+	}
+	return out.Ext.Zones, nil
+}
+
 func (c *Core) GetZones(ctx context.Context, channelID string) ([]Zone, error) {
 	var out Channel
 	if err := c.store.Channel().Get(ctx, &out, orm.Where("id=?", channelID)); err != nil {
