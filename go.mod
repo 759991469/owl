@@ -9,7 +9,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/google/wire v0.7.0
-	github.com/gowvp/onvif v0.0.14
+	github.com/gowvp/onvif v0.0.15
 	github.com/grafov/m3u8 v0.12.1
 	github.com/ixugo/goddd v1.5.9
 	github.com/ixugo/netpulse v0.1.3
@@ -95,5 +95,3 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.47.0 // indirect
 )
-
-replace github.com/gowvp/onvif => /Users/xugo/Desktop/gowvp/onvif
