@@ -38,7 +38,7 @@ func (c Core) FindChannelsForDevice(ctx context.Context, in *FindDeviceInput) ([
 		// 限制查询通道数量
 		const size = 5
 		item.Children = make([]*Channel, 0, size)
-		query := orm.NewQuery(2).OrderBy("created_at DESC").Where("did=?", item.ID)
+		query := orm.NewQuery(2).OrderBy("created_at ASC").Where("did=?", item.ID)
 		_, err := c.store.Channel().Find(ctx, &item.Children, web.PagerFilter{Size: size}, query.Encode()...)
 		if err != nil {
 			continue

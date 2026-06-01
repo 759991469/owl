@@ -24,6 +24,7 @@ type ChannelStorer interface {
 	Del(context.Context, *Channel, ...orm.QueryOption) error
 
 	BatchEdit(context.Context, string, any, ...orm.QueryOption) error // 批量更新一个字段
+	EditGB28181Config(context.Context, *Channel) error                // 直接更新 GB28181 上报的四个字段，跳过查询
 	Session(ctx context.Context, changeFns ...func(*gorm.DB) error) error
 }
 
@@ -224,7 +225,7 @@ func (c *Core) EditChannel(ctx context.Context, in *EditChannelInput, id string)
 			b.DeviceID = in.DeviceID
 		}
 		if in.PTZType != 0 {
-			b.PTZType = in.PTZType
+			b.PTZ = in.PTZType
 		}
 		b.Config = mergeStreamConfig(b.Config, in.Config)
 		return nil

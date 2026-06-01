@@ -157,16 +157,14 @@ func (g Adapter) SaveChannels(channels []*Channel) error {
 
 		if existing, ok := existingMap[channel.ChannelID]; ok {
 			// 只更新设备上报的字段，保留用户手动配置的 EnabledAI / Zones / RecordMode
-			_ = g.store.Channel().Edit(ctx, existing, func(c *Channel) error {
-				c.Name = channel.Name
-				c.IsOnline = channel.IsOnline
-				c.PTZType = channel.PTZType
-				c.Ext.Manufacturer = channel.Ext.Manufacturer
-				c.Ext.Firmware = channel.Ext.Firmware
-				c.Ext.GBVersion = channel.Ext.GBVersion
-				c.Ext.Model = channel.Ext.Model
-				return nil
-			}, orm.Where("id=?", existing.ID))
+			existing.Name = channel.Name
+			existing.IsOnline = channel.IsOnline
+			existing.PTZ = channel.PTZ
+			existing.Ext.Manufacturer = channel.Ext.Manufacturer
+			existing.Ext.Firmware = channel.Ext.Firmware
+			existing.Ext.GBVersion = channel.Ext.GBVersion
+			existing.Ext.Model = channel.Ext.Model
+			_ = g.store.Channel().EditGB28181Config(ctx, existing)
 		} else {
 			// 通道不存在，新增
 			channel.ID = GenerateChannelID(channel, g.uni)

@@ -51,6 +51,14 @@ func (d Channel) Edit(ctx context.Context, model *ipc.Channel, changeFn func(*ip
 	return orm.UpdateWithContext2(ctx, d.db, model, changeFn, opts...)
 }
 
+// EditGB28181Config 直接更新 GB28181 上报的字段（name/is_online/ptztype/ext），跳过 SELECT FOR UPDATE，因为调用方已持有 existing 对象。
+func (d Channel) EditGB28181Config(ctx context.Context, model *ipc.Channel) error {
+	return d.db.WithContext(ctx).
+		Model(model).
+		Select("name", "is_online", "ptz", "ext").
+		Updates(model).Error
+}
+
 // Del implements ipc.ChannelStorer.
 func (d Channel) Del(ctx context.Context, model *ipc.Channel, opts ...orm.QueryOption) error {
 	return orm.DeleteWithContext(ctx, d.db, model, opts...)

@@ -44,6 +44,11 @@ func (c *Channel) Edit(ctx context.Context, ch *ipc.Channel, changeFn func(*ipc.
 	return c.Storer.Channel().Edit(ctx, ch, changeFn, opts...)
 }
 
+// EditGB28181Config implements ipc.ChannelStorer.
+func (c *Channel) EditGB28181Config(ctx context.Context, ch *ipc.Channel) error {
+	return c.Storer.Channel().EditGB28181Config(ctx, ch)
+}
+
 // Find implements ipc.ChannelStorer.
 func (c *Channel) Find(ctx context.Context, chs *[]*ipc.Channel, pager orm.Pager, opts ...orm.QueryOption) (int64, error) {
 	return c.Storer.Channel().Find(ctx, chs, pager, opts...)

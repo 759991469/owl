@@ -882,7 +882,7 @@ func (a IPCAPI) ptzControl(c *gin.Context, in *ptzControlInput) (gin.H, error) {
 		"channel_id", channelID,
 		"channel_device_id", channel.DeviceID,
 		"channel_channel_id", channel.ChannelID,
-		"channel_ptztype", channel.PTZType, // 添加 PTZ 类型
+		"channel_ptztype", channel.PTZ, // 添加 PTZ 类型
 		"device_id", device.ID,
 		"device_type", device.GetType(),
 		"action", in.Action,
