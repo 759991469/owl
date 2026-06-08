@@ -2,38 +2,54 @@ name: Build & Push Docker Image
 
 on:
   push:
-    branches: [ main, master ]  # 推送到这些分支就自动构建
-  workflow_dispatch:            # 也可以手动触发构建
+    branches: [ main, master ]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}  # 会自动变成 ghcr.io/759991469/owl
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write  # 允许写入 ghcr.io 镜像仓库
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 匹配原项目 Go 版本
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.0-rc.1"
+
+      # 安装 make 并执行项目原生编译命令（生成 build 目录）
+      - name: Build binary
+        run: |
+          sudo apt update
+          sudo apt install -y make
+          make build/linux
+
+      # 多架构构建依赖
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      # 登录 GHCR 镜像仓库
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      # 构建并推送镜像
+      - name: Build & Push Docker
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -41,4 +57,5 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          platforms: linux/amd64  # 飞牛NAS一般是amd64架构
+          platforms: linux/amd64
+          no-cache: true
