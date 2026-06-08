@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/owl
 
 jobs:
   build-and-push:
@@ -37,11 +37,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 关键：先登出 Docker Hub，避免用错误凭证
       - name: Logout Docker Hub
         run: docker logout
 
-      # 只登录 GHCR，不碰 Docker Hub
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -55,8 +53,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           platforms: linux/amd64
           no-cache: true
           pull: true
